@@ -1,0 +1,47 @@
+{
+  "name": "ewents-scan",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./lib/cjs/index.js",
+  "module": "./lib/esm/index.js",
+  "types": "./lib/esm/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "npm run build",
+    "build": "npm run build:esm && npm run build:cjs && npm run build:rollup",
+    "build:esm": "tsc",
+    "build:cjs": "tsc --module commonjs --outDir lib/cjs",
+    "build:rollup": "rollup -c",
+    "dev": "nodemon"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TomasFleitas/rtc-scan"
+  },
+  "keywords": [
+    "rtc",
+    "WebRTC",
+    "peer-to-peer",
+    "Real-Time Communication",
+    "Ewents",
+    "peers",
+    "scan",
+    "qr",
+    "br"
+  ],
+  "files": [
+    "/lib"
+  ],
+  "author": "Tomás Fleitas",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "@types/uuid": "^10.0.0",
+    "nodemon": "^3.1.3",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "ewents-rtc": "^1.1.1",
+    "jsrsasign": "^11.1.0",
+    "uuid": "^10.0.0"
+  }
+}
