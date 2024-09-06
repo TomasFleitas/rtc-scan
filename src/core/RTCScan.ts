@@ -2,6 +2,7 @@ import WebRTC from 'ewents-rtc';
 import { v4 as uuidv4 } from 'uuid';
 import QRCode from 'qrcode';
 import { generateCode } from '../utils/tools';
+import { SCAN_TARGET_PAGE } from '../utils/const';
 
 type RTCScanCodeCallback<T, V = void> = (value: T) => V;
 
@@ -14,6 +15,7 @@ export type ScanConfig = {
   maxFeedback?: number;
   throttleInterval?: number;
   feedbackDuration?: number;
+  isAutoReconnect?: boolean
 };
 
 export class RTCScan {
@@ -35,6 +37,7 @@ export class RTCScan {
         'maxFeedback',
         'throttleInterval',
         'feedbackDuration',
+        "isAutoReconnect"
       ]);
     }
 
@@ -76,7 +79,7 @@ export class RTCScan {
 
         this.session = generateCode();
 
-        const pageUrl = `https://26d9-2a09-bac5-c7-1b9-00-2c-b7.ngrok-free.app/${btoa(
+        const pageUrl = `${SCAN_TARGET_PAGE}/${btoa(
           this.peerId,
         )}/${btoa(this.session)}/${btoa(this.rtcScanPeerId)}/${btoa(
           this.clientKey,

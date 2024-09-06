@@ -1,0 +1,1 @@
+export const SCAN_TARGET_PAGE = /* "http://localhost:5173" */ "https://scan.ewents.io"
