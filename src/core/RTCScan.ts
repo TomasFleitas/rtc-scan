@@ -23,11 +23,12 @@ export class RTCScan {
   private rtcScanPeerId: string;
   private peerId: string;
   private session: string;
-  private innerOnIsConnected: RTCScanCodeCallback<boolean>;
-  private innerOnIsConnecting: RTCScanCodeCallback<boolean>;
+  private innerOnIsConnected?: RTCScanCodeCallback<boolean> | null;
+  private innerOnIsConnecting?: RTCScanCodeCallback<boolean> | null;
+  private innerOnSessionId?: RTCScanCodeCallback<string> | null;
   private isGenerating = false;
 
-  constructor(private clientKey: string, private scanConfig?: ScanConfig) {
+  constructor(private clientKey: string, private scanConfig?: ScanConfig | null) {
     if (!clientKey) {
       throw new Error('Client Key is required.');
     }
@@ -54,11 +55,11 @@ export class RTCScan {
     });
   }
 
-  public onIsConnected(callback: RTCScanCodeCallback<boolean>) {
+  public onIsConnected(callback?: RTCScanCodeCallback<boolean> | null) {
     this.innerOnIsConnected = callback;
   }
 
-  public onIsConnecting(callback: RTCScanCodeCallback<boolean>) {
+  public onIsConnecting(callback?: RTCScanCodeCallback<boolean> | null) {
     this.innerOnIsConnecting = callback;
   }
 
@@ -78,6 +79,7 @@ export class RTCScan {
         });
 
         this.session = generateCode();
+        this.innerOnSessionId?.(this.session)
 
         const pageUrl = `${SCAN_TARGET_PAGE}/${btoa(
           this.peerId,
@@ -85,7 +87,7 @@ export class RTCScan {
           this.clientKey,
         )}`;
 
-        QRCode.toDataURL(pageUrl, { width: qrPxSize }, (err, url) => {
+        QRCode.toDataURL(pageUrl, { width: qrPxSize, margin: 2 }, (err, url) => {
           this.isGenerating = false;
           if (err) reject(err);
           resolve({ qrUrl: url, url: pageUrl });
@@ -94,7 +96,8 @@ export class RTCScan {
     });
   }
 
-  public getSession() {
+  public getSession(callback?: RTCScanCodeCallback<string> | null) {
+    this.innerOnSessionId = callback;
     return this.session;
   }
 
@@ -109,26 +112,28 @@ export class RTCScan {
   }
 
   public onDataReceived<T = any>(
-    callback: RTCScanCodeCallback<T, Feedback | Promise<Feedback>>,
+    callback: RTCScanCodeCallback<T, Feedback | Promise<Feedback> | undefined | null>,
   ) {
     if (!callback) throw new Error('callback is required.');
     this.ewentsWebRTC.onReceiveData(async (data) => {
       const callbackResponse = await callback(data);
 
       this.validateKeys(callbackResponse, ['type', 'message']);
-      this.validateFeedbackTypes(callbackResponse.type);
+      this.validateFeedbackTypes(callbackResponse?.type);
 
-      this.ewentsWebRTC.sendData({ id: data.id, ...callbackResponse });
+      this.ewentsWebRTC.sendData({ id: data.id, ...(callbackResponse || {}) });
     });
   }
 
-  private validateFeedbackTypes(types: Feedback['type']) {
+  private validateFeedbackTypes(types?: Feedback['type']) {
+    if (!types) return;
+
     if (!['error', 'success'].includes(types)) {
       throw new Error("type must be one of these values: 'error' | 'success'");
     }
   }
 
-  private validateKeys(obj?: Feedback | ScanConfig, allowedKeys?: string[]) {
+  private validateKeys(obj?: Feedback | ScanConfig | null, allowedKeys?: string[]) {
     const keys = Object.keys(obj || {});
 
     const notAllowed = keys?.filter((key) => !allowedKeys?.includes(key));
