@@ -1,5 +1,4 @@
 import WebRTC from 'ewents-rtc';
-import { v4 as uuidv4 } from 'uuid';
 import QRCode from 'qrcode';
 import { generateCode } from '../utils/tools';
 import { SCAN_TARGET_PAGE } from '../utils/const';
@@ -42,7 +41,7 @@ export class RTCScan {
       ]);
     }
 
-    this.rtcScanPeerId = uuidv4();
+    this.rtcScanPeerId = `${generateCode()}-s`;
     this.ewentsWebRTC = new WebRTC({
       clientKey,
     });
@@ -72,7 +71,7 @@ export class RTCScan {
 
         this.ewentsWebRTC.closeConnection();
 
-        this.peerId = uuidv4();
+        this.peerId = `${generateCode()}-s`;
 
         this.ewentsWebRTC.startConnection(this.peerId, {
           peerId: this.rtcScanPeerId,
