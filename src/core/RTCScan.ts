@@ -2,6 +2,7 @@ import WebRTC from 'ewents-rtc';
 import QRCode from 'qrcode';
 import { generateCode } from '../utils/tools';
 import { SCAN_TARGET_PAGE } from '../utils/const';
+import { createPayload, getPayload } from '../service/payload';
 
 type RTCScanCodeCallback<T, V = void> = (value: T) => V;
 
@@ -17,6 +18,12 @@ export type ScanConfig = {
   isAutoReconnect?: boolean
 };
 
+export type SystemConfig = {
+  isLog?: boolean;
+  allowShortUrl?: boolean;
+  shortUrlTTL?: number;
+}
+
 export class RTCScan {
   private ewentsWebRTC: WebRTC;
   private rtcScanPeerId: string;
@@ -26,8 +33,12 @@ export class RTCScan {
   private innerOnIsConnecting?: RTCScanCodeCallback<boolean> | null;
   private innerOnSessionId?: RTCScanCodeCallback<string> | null;
   private isGenerating = false;
+  private communicationLvl?: string;
+  private qrPxSize: number = 300;
+  private reconnectBlocked: boolean;
 
-  constructor(private clientKey: string, private scanConfig?: ScanConfig | null) {
+
+  constructor(private clientKey: string, private scanConfig?: ScanConfig | null, private systemConfig?: SystemConfig | null) {
     if (!clientKey) {
       throw new Error('Client Key is required.');
     }
@@ -41,32 +52,52 @@ export class RTCScan {
       ]);
     }
 
+    if (systemConfig) {
+      this.validateKeys(systemConfig, [
+        "allowShortUrl",
+        "shortUrlTTL",
+        "isLog"
+      ]);
+    }
+
     this.rtcScanPeerId = `${generateCode()}-s`;
     this.ewentsWebRTC = new WebRTC({
+      isLog: true,
       clientKey,
     });
     this.ewentsWebRTC.onCommunicationState((lvl) => {
       if (!!this.scanConfig && ['weak', 'full'].includes(lvl)) {
         this.ewentsWebRTC.sendData({ scanConfig: this.scanConfig });
       }
+
       this.innerOnIsConnected?.(['weak', 'full'].includes(lvl));
       this.innerOnIsConnecting?.('connecting' === lvl);
+
+      if (this.communicationLvl && lvl === "none" && this.scanConfig?.isAutoReconnect) {
+        this.reConnect();
+      }
+
+      this.communicationLvl = lvl;
     });
   }
 
   public onIsConnected(callback?: RTCScanCodeCallback<boolean> | null) {
     this.innerOnIsConnected = callback;
+    this.innerOnIsConnected?.(['weak', 'full'].includes(this.communicationLvl || ""));
   }
 
   public onIsConnecting(callback?: RTCScanCodeCallback<boolean> | null) {
     this.innerOnIsConnecting = callback;
+    this.innerOnIsConnecting?.('connecting' === this.communicationLvl);
   }
 
   public async getConnectionDetail(
-    qrPxSize = 300,
-  ): Promise<{ qrUrl: string; url: string }> {
+    qrPxSize?: number
+  ): Promise<{ qrImage: string; url: string }> {
+    this.qrPxSize = qrPxSize ?? this.qrPxSize;
     return new Promise(async (resolve, reject) => {
       if (!this.isGenerating) {
+        this.communicationLvl = undefined;
         this.isGenerating = true;
 
         this.ewentsWebRTC.closeConnection();
@@ -75,22 +106,18 @@ export class RTCScan {
 
         this.ewentsWebRTC.startConnection(this.peerId, {
           peerId: this.rtcScanPeerId,
-        });
+        })
 
         this.session = generateCode();
         this.innerOnSessionId?.(this.session)
 
-        const pageUrl = `${SCAN_TARGET_PAGE}/${btoa(
-          this.peerId,
-        )}/${btoa(this.session)}/${btoa(this.rtcScanPeerId)}/${btoa(
-          this.clientKey,
-        )}`;
+        const scanUrl = await this.generateUrl()
 
-        QRCode.toDataURL(pageUrl, { width: qrPxSize, margin: 2 }, (err, url) => {
-          this.isGenerating = false;
-          if (err) reject(err);
-          resolve({ qrUrl: url, url: pageUrl });
-        });
+        try {
+          resolve(await this.getQr(scanUrl))
+        } catch (error) {
+          reject(error)
+        }
       }
     });
   }
@@ -100,13 +127,32 @@ export class RTCScan {
     return this.session;
   }
 
-  public reConnect() {
-    this.ewentsWebRTC.startConnection(this.peerId, {
-      peerId: this.rtcScanPeerId,
-    });
+  public async reConnect() {
+    if (this.reconnectBlocked) {
+      this.systemConfig?.isLog && console.log("Reconnect is blocked due to too many attempts. Please wait.");
+      return;
+    }
+
+    try {
+      this.communicationLvl = undefined;
+      await this.ewentsWebRTC.startConnection(this.peerId, {
+        peerId: this.rtcScanPeerId,
+      });
+    } catch (error) {
+      if (error.code === 1008) {
+        this.reconnectBlocked = true;
+        setTimeout(() => {
+          this.reconnectBlocked = false;
+          this.systemConfig?.isLog && console.log("Reconnection is now allowed.");
+        }, 60000);
+      } else {
+        console.log(error);
+      }
+    }
   }
 
   public closeConnection() {
+    this.communicationLvl = undefined;
     this.ewentsWebRTC.closeConnection();
   }
 
@@ -124,6 +170,59 @@ export class RTCScan {
     });
   }
 
+  public async startConnectionWithUrl(url: string, qrPxSize?: number) {
+    const parsedUrl = new URL(url);
+    const urlSegments = parsedUrl.pathname.split('/').filter(segment => segment);
+
+    this.qrPxSize = qrPxSize ?? this.qrPxSize;
+
+    this.closeConnection()
+
+    if (this.systemConfig?.allowShortUrl && urlSegments.length === 2) {
+      const id = urlSegments[1];
+      const payload = await getPayload(id);
+
+      if (atob(payload.clientKey) !== this.clientKey) {
+        throw new Error('Invalid clientKey.');
+      }
+
+      this.peerId = atob(payload.peerId);
+      this.rtcScanPeerId = atob(payload.scan);
+      this.session = atob(payload.session);
+
+      this.reConnect()
+    } else {
+      const [peerIdEncoded, sessionEncoded, rtcScanPeerIdEncoded, clientKeyEncoded] = urlSegments.slice(-4);
+
+      const peerId = atob(peerIdEncoded);
+      const session = atob(sessionEncoded);
+      const rtcScanPeerId = atob(rtcScanPeerIdEncoded);
+      const clientKey = atob(clientKeyEncoded);
+
+      if (clientKey !== this.clientKey) {
+        throw new Error('Invalid clientKey.');
+      }
+
+      this.peerId = peerId;
+      this.session = session;
+      this.rtcScanPeerId = rtcScanPeerId;
+
+      this.reConnect()
+
+      return this.getQr(this.getCommonUrl())
+    }
+  }
+
+  private async getQr(url: string): Promise<{ url: string, qrImage: string }> {
+    return await new Promise((resolve, reject) => {
+      QRCode.toDataURL(url, { width: this.qrPxSize, margin: 2 }, (err, qrImage) => {
+        this.isGenerating = false;
+        if (err) reject(err);
+        resolve({ qrImage, url });
+      });
+    })
+  }
+
   private validateFeedbackTypes(types?: Feedback['type']) {
     if (!types) return;
 
@@ -132,7 +231,7 @@ export class RTCScan {
     }
   }
 
-  private validateKeys(obj?: Feedback | ScanConfig | null, allowedKeys?: string[]) {
+  private validateKeys(obj?: Feedback | ScanConfig | SystemConfig | null, allowedKeys?: string[]) {
     const keys = Object.keys(obj || {});
 
     const notAllowed = keys?.filter((key) => !allowedKeys?.includes(key));
@@ -140,5 +239,21 @@ export class RTCScan {
     if (notAllowed.length) {
       throw new Error(`Keys not allowed: ${notAllowed.toString()}`);
     }
+  }
+
+  private async generateUrl() {
+    if (this.systemConfig?.allowShortUrl) {
+      return await createPayload({ clientKey: btoa(this.clientKey), scan: btoa(this.rtcScanPeerId), peerId: btoa(this.peerId), session: btoa(this.session) }, this.systemConfig.shortUrlTTL)
+    } else {
+      return this.getCommonUrl()
+    }
+  }
+
+  private getCommonUrl() {
+    return `${SCAN_TARGET_PAGE}/${btoa(
+      this.peerId,
+    )}/${btoa(this.session)}/${btoa(this.rtcScanPeerId)}/${btoa(
+      this.clientKey,
+    )}`;
   }
 }
