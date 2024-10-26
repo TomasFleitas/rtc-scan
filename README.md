@@ -1,11 +1,7 @@
 
-# RTCScan Usage Guide
+# RTCScan Example Usage
 
-This README provides instructions on how to use the `RTCScan` class and its methods for managing connections and handling data during a scan session.
-
-### Testing with Demo
-
-You can test the integration of the `RTCScan` class by visiting the demo page: [https://scan.ewents.io](https://scan.ewents.io).
+This guide provides an example of how to use the `RTCScan` class to manage connections and handle data during a scan session. Below, you'll find installation instructions, initialization options, and method explanations.
 
 ## Installation
 
@@ -15,38 +11,51 @@ First, make sure to install the `ewents-scan` package:
 npm install ewents-scan
 ```
 
-## RTCScan Class Overview
+## Using the RTCScan Class
 
-The `RTCScan` class helps in managing connections and handling data during a scan session. The class provides several options and methods to retrieve connection details, monitor connection status, and handle received data.
+The `RTCScan` class provides several options and methods to retrieve connection details, monitor connection status, and handle received data.
 
 ### RTCScan Initialization Options
 
-Here’s an example of how to initialize the `RTCScan` class with the available options:
-
 ```javascript
 const rtcscan = new RTCScan('66760d2b14813c0e8b53b4ff', {
-  maxFeedback: 3,  // Max number of feedback
-  throttleInterval: 2000,  // Time between each scan event (in ms)
-  feedbackDuration: 10000,  // Duration of feedback in milliseconds
-  isAutoReconnect: true,  // Whether it should automatically reconnect
+  maxFeedback: 10,            // Max number of feedback allowed
+  throttleInterval: 2000,      // Time between each scan event (in ms)
+  feedbackDuration: 10000,     // Duration of feedback in milliseconds
+  isAutoReconnect: true,       // Automatically reconnect if disconnected
+}, {
+  allowShortUrl: false,        // If true, allows generating a short URL with TTL
+  isLog: true,                 // Enables logging for debugging purposes
+  shortUrlTTL: 300             // Time-to-live for the short URL in seconds
 });
 ```
 
-Note: The API key (`66760d2b14813c0e8b53b4ff`) is a default key for trying out the example. This key will be deleted after testing, so ensure to replace it with your own API key.
+#### Options Explained:
+
+- `maxFeedback`: Maximum number of feedback events allowed.
+- `throttleInterval`: Minimum interval (in milliseconds) between each scan event.
+- `feedbackDuration`: Duration for which feedback is active.
+- `isAutoReconnect`: Automatically reconnect if the connection is lost.
+
+### Advanced Configuration
+
+The advanced configuration object includes:
+
+- `allowShortUrl`: Allows generating a short URL with a specified TTL (in seconds) for temporary connections.
+- `isLog`: Enables logging for debugging and monitoring.
+- `shortUrlTTL`: TTL (in seconds) for the short URL, after which it expires.
 
 ### Methods
 
 #### 1. Getting Connection Details (with optional QR size)
 
-Retrieve the QR code URL (`qrUrl`) and the connection URL (`url`). You can optionally pass the `qrPxSize` parameter to adjust the size of the QR code, where the default is 300 pixels.
-
 ```javascript
-const { qrUrl, url } = await rtcscan.getConnectionDetail({ qrPxSize: 300 });
+const { qrImage, url } = await rtcscan.getConnectionDetail(300);
 ```
 
-#### 2. Handling Received Data
+Retrieves the QR code URL (`qrImage`) and the connection URL (`url`). Optionally, you can pass `qrPxSize` to adjust the QR code size (default is 300 pixels).
 
-The `onDataReceived` method listens for incoming data. You can return a `type` ('success' or 'error') and a `message`, but this is optional, and the response could be a promise or just plain data.
+#### 2. Handling Received Data
 
 ```javascript
 rtcscan.onDataReceived((value) => {
@@ -57,34 +66,43 @@ rtcscan.onDataReceived((value) => {
 });
 ```
 
-#### 3. Monitoring Connection Status
+Listens for incoming data. You can return a `type` ('success' or 'error') and a `message`, though this is optional.
 
-These methods monitor the connection status. `onIsConnecting` is triggered when the session is connecting, and `onIsConnected` is triggered when the connection is successfully established.
+#### 3. Monitoring Connection Status
 
 ```javascript
 rtcscan.onIsConnecting(() => setIsLoading(true));
-
 rtcscan.onIsConnected(() => setIsConnected(true));
 ```
 
-#### 4. Reconnect Functionality
+- `onIsConnecting`: Triggered when the session is connecting.
+- `onIsConnected`: Triggered when the connection is successfully established.
 
-The `reConnect` method attempts to re-establish the connection manually if it is lost.
+#### 4. Reconnect Functionality
 
 ```javascript
 rtcscan.reConnect();
 ```
 
-#### 5. Getting the Session ID
+Attempts to manually re-establish the connection if it is lost.
 
-This method returns the session ID. You can also pass a callback to handle the session ID when it's available.
+#### 5. Getting the Session ID
 
 ```javascript
 const sessionId = rtcscan.getSession();
-
 rtcscan.getSession((id) => console.log(id));  // Optionally pass a callback
 ```
 
-## Conclusion
+Returns the session ID, with an optional callback for handling it when available.
+
+#### 6. Starting Connection with a URL
+
+```javascript
+rtcscan.startConnectionWithUrl('https://scan.ewents.io/connection-url');
+```
+
+Initiates the connection using a specified URL (short or long), allowing flexibility in the URL format.
+
+---
 
 This overview covers the key methods and options of the `RTCScan` class, providing control over connection handling, received data, and session management.

@@ -49,7 +49,7 @@ export const getPayload = async (id: string) => {
     throw new Error(errorResponse.error || `GET request failed: ${getResponse.statusText}`);
   }
 
-  const payload: PayloadPayload = await getResponse.json();
+  const payload: PayloadPayload = JSON.parse(atob((await getResponse.json()).payload));
 
   return payload;
 };

@@ -4,7 +4,6 @@
 /example/build
 .env
 .npmrc
-service-account.json
 /rtc-backend
 /rtc-scan
 /example

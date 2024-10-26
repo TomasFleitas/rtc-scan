@@ -41,6 +41,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "ewents-rtc": "^1.1.4",
     "jsrsasign": "^11.1.0",
     "pako": "^2.1.0"
   }
