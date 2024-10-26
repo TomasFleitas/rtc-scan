@@ -1,7 +1,11 @@
 
-# RTCScan Example Usage
+# ewents-scan
 
 This guide provides an example of how to use the `RTCScan` class to manage connections and handle data during a scan session. Below, you'll find installation instructions, initialization options, and method explanations.
+
+Demo:
+https://scan.ewents.io/
+
 
 ## Installation
 
