@@ -5,6 +5,8 @@ This guide provides an example of how to use the `RTCScan` class to manage conne
 
 Demo:
 https://scan.ewents.io/
+Video Demo:
+https://youtu.be/tXeCPb_CR0A
 
 
 ## Installation
